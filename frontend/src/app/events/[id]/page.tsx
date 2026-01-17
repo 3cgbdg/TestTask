@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useDispatch } from 'react-redux';
 import {
   Container,
   Typography,
@@ -14,14 +13,6 @@ import {
   CircularProgress,
   Alert,
   Stack,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  Card,
-  CardContent,
-  Grid,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -32,15 +23,15 @@ import {
 } from '@mui/icons-material';
 import eventsService from '@/src/services/eventsService';
 import { IEvent } from '@/src/types/events';
-import { removeEvent } from '@/src/redux/eventsSlice';
-import { AppDispatch } from '@/src/redux/store';
+import { EventUtils } from '@/src/utils/event.utils';
+import SimilarEvents from '@/src/components/events/SimilarEvents';
+import DeleteConfirmDialog from '@/src/components/common/DeleteConfirmDialog';
 
 export default function EventDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
   const queryClient = useQueryClient();
-  const dispatch = useDispatch<AppDispatch>();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const { data: event, isLoading, error } = useQuery<IEvent>({
@@ -58,7 +49,6 @@ export default function EventDetailsPage() {
   const deleteMutation = useMutation({
     mutationFn: () => eventsService.deleteEvent(id),
     onSuccess: () => {
-      dispatch(removeEvent(id));
       queryClient.invalidateQueries({ queryKey: ['events'] });
       router.push('/events');
     },
@@ -67,19 +57,6 @@ export default function EventDetailsPage() {
   const handleDelete = async () => {
     deleteMutation.mutate();
   };
-
-  const formatDate = useMemo(() => {
-    return (dateString: string) => {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    };
-  }, []);
 
   if (isLoading) {
     return (
@@ -114,11 +91,7 @@ export default function EventDetailsPage() {
 
       {(error || deleteMutation.error) && (
         <Alert severity="error" sx={{ mb: 3 }}>
-          {deleteMutation.error instanceof Error 
-            ? deleteMutation.error.message 
-            : error instanceof Error 
-            ? error.message 
-            : 'Error'}
+          {(deleteMutation.error as any)?.message || (error as any)?.message || 'An error occurred'}
         </Alert>
       )}
 
@@ -158,7 +131,7 @@ export default function EventDetailsPage() {
               </Typography>
             </Box>
             <Typography variant="body1" color="text.secondary" sx={{ ml: 4 }}>
-              {formatDate(event.date)}
+              {EventUtils.formatDate(event.date)}
             </Typography>
           </Box>
 
@@ -185,64 +158,15 @@ export default function EventDetailsPage() {
         </Stack>
       </Paper>
 
-      {similarEvents.length > 0 && (
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h5" gutterBottom fontWeight={600} sx={{ mb: 2 }}>
-            Similar Events
-          </Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
-            {similarEvents.map((similarEvent) => (
-              <Card
-                key={similarEvent.id}
-                sx={{
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: 3,
-                  },
-                }}
-                onClick={() => router.push(`/events/${similarEvent.id}`)}
-              >
-                <CardContent>
-                  <Chip label={similarEvent.category} size="small" sx={{ mb: 1 }} />
-                  <Typography variant="h6" gutterBottom>
-                    {similarEvent.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    {formatDate(similarEvent.date)}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    {similarEvent.location}
-                  </Typography>
-                </CardContent>
-              </Card>
-            ))}
-          </Box>
-        </Box>
-      )}
+      <SimilarEvents events={similarEvents} />
 
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Confirm Deletion</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete this event? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleteMutation.isPending}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDelete}
-            color="error"
-            variant="contained"
-            disabled={deleteMutation.isPending}
-          >
-            {deleteMutation.isPending ? <CircularProgress size={20} /> : 'Delete'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        loading={deleteMutation.isPending}
+      />
     </Container>
   );
 }
+

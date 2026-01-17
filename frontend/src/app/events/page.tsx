@@ -3,7 +3,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { useDispatch } from 'react-redux';
 import {
   Container,
   Typography,
@@ -15,14 +14,12 @@ import {
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import eventsService from '@/src/services/eventsService';
-import { setEvents } from '@/src/redux/eventsSlice';
-import { AppDispatch } from '@/src/redux/store';
 import EventCard from '@/src/components/events/EventCard';
 import EventFilters from '@/src/components/events/EventFilters';
+import { EventUtils } from '@/src/utils/event.utils';
 
 export default function EventsPage() {
   const router = useRouter();
-  const dispatch = useDispatch<AppDispatch>();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
@@ -30,20 +27,18 @@ export default function EventsPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [mounted, setMounted] = useState(false);
 
+  // for 1st loading state
   useEffect(() => {
     setMounted(true);
   }, []);
 
   // Fetch categories
-  const { data: categoriesData } = useQuery<string[]>({
+  const { data: categories = [] } = useQuery<string[]>({
     queryKey: ['categories'],
     queryFn: () => eventsService.getCategories(),
   });
 
-  const categories = useMemo(() => {
-    if (!categoriesData) return [];
-    return Array.isArray(categoriesData) ? categoriesData : [];
-  }, [categoriesData]);
+
 
   // Fetch events with filters
   const { data: eventsResponse, isLoading, error } = useQuery({
@@ -55,34 +50,17 @@ export default function EventsPage() {
         sortBy,
         sortOrder,
         page,
-        limit: 12,
+        limit: 10,
       });
-      dispatch(setEvents(response.data));
       return response;
     },
   });
 
+  // getting data from response
   const events = eventsResponse?.data || [];
   const totalPages = eventsResponse?.totalPages || 0;
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
 
-  const truncateDescription = (text?: string, maxLength: number = 150) => {
-    if (!text) return '';
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  };
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
     setPage(value);
@@ -91,6 +69,7 @@ export default function EventsPage() {
     }
   };
 
+  // loading state
   if (!mounted) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -100,6 +79,7 @@ export default function EventsPage() {
       </Container>
     );
   }
+
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -156,8 +136,8 @@ export default function EventsPage() {
               <EventCard
                 key={event.id}
                 event={event}
-                formatDate={formatDate}
-                truncateDescription={truncateDescription}
+                formatDate={EventUtils.formatDate}
+                truncateDescription={EventUtils.truncateDescription}
                 onDetailsClick={(id) => router.push(`/events/${id}`)}
               />
             ))}
