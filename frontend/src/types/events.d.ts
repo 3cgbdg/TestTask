@@ -35,3 +35,9 @@ export interface IEvent {
     page?: number;
     limit?: number;
   }
+
+
+  interface IMapViewProps {
+    events: IEvent[];
+    onEventClick: (id: string) => void;
+}

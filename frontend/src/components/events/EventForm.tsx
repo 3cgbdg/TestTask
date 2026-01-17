@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { TextField, Box, Stack, Button, CircularProgress } from '@mui/material';
 import { Save } from '@mui/icons-material';
 import { createEventSchema, CreateEventFormData } from '@/src/schemas/event.schema';
+import { EventUtils } from '@/src/utils/event.utils';
 
 interface EventFormProps {
     initialValues?: Partial<CreateEventFormData>;
@@ -37,11 +38,7 @@ export default function EventForm({
         },
     });
 
-    const getMinDate = () => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return today.toISOString().slice(0, 16);
-    };
+
 
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
@@ -74,7 +71,7 @@ export default function EventForm({
                     error={!!errors.date}
                     helperText={errors.date?.message}
                     InputLabelProps={{ shrink: true }}
-                    inputProps={{ min: getMinDate() }}
+                    inputProps={{ min: EventUtils.getMinDate() }}
                     required
                 />
 

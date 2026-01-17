@@ -1,6 +1,6 @@
 
 
-export const EventUtils  = {
+export const EventUtils = {
     formatDate(dateString: string) {
         if (!dateString) return '';
         const date = new Date(dateString);
@@ -18,4 +18,10 @@ export const EventUtils  = {
         if (text.length <= maxLength) return text;
         return text.substring(0, maxLength) + '...';
     },
+
+    getMinDate() {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return today.toISOString().slice(0, 16);
+    }
 }

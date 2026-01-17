@@ -4,16 +4,15 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { QueryEventsDto, SortBy, SortOrder } from './dto/query-events.dto';
 import { Prisma } from '@prisma/client';
-import { LoggerService } from '../common/logger.service';
+import { IEvent, IPaginatedResponse, IDeleteResponse } from '../types/events';
 
 @Injectable()
 export class EventsService {
-  private readonly logger = new LoggerService(EventsService.name);
 
   constructor(private prisma: PrismaService) { }
 
 
-  async create(createEventDto: CreateEventDto) {
+  async create(createEventDto: CreateEventDto): Promise<IEvent> {
     const event = await this.prisma.event.create({
       data: {
         title: createEventDto.title,
@@ -29,11 +28,10 @@ export class EventsService {
     return this.transformEvent(event);
   }
 
-  async findAll(queryDto: QueryEventsDto) {
+  async findAll(queryDto: QueryEventsDto): Promise<IPaginatedResponse<IEvent>> {
     const { search, category, sortBy, sortOrder, page = 1, limit = 12 } = queryDto;
     const skip = (page - 1) * limit;
 
-    // Build where clause for filtering
     const where: Prisma.EventWhereInput = {};
 
     if (search) {
@@ -48,7 +46,6 @@ export class EventsService {
       where.category = category;
     }
 
-    // Build orderBy clause
     const orderBy: Prisma.EventOrderByWithRelationInput = {};
     if (sortBy === SortBy.DATE) {
       orderBy.date = sortOrder === SortOrder.ASC ? 'asc' : 'desc';
@@ -58,10 +55,8 @@ export class EventsService {
       orderBy.createdAt = sortOrder === SortOrder.ASC ? 'asc' : 'desc';
     }
 
-    // Get total count for pagination
     const total = await this.prisma.event.count({ where });
 
-    // Get events with pagination
     const events = await this.prisma.event.findMany({
       where,
       orderBy,
@@ -78,23 +73,19 @@ export class EventsService {
     };
   }
 
-  async findOne(id: string) {
-    this.logger.debug(`Finding event with ID: ${id}`);
-
+  async findOne(id: string): Promise<IEvent> {
     const event = await this.prisma.event.findUnique({
       where: { id },
     });
 
     if (!event) {
-      this.logger.warn(`Event with ID ${id} not found`);
       throw new NotFoundException(`Event with ID ${id} not found`);
     }
 
-    this.logger.debug(`Event found: ${event.title}`);
     return this.transformEvent(event);
   }
 
-  async findSimilar(id: string, limit: number = 4) {
+  async findSimilar(id: string, limit: number = 4): Promise<IEvent[]> {
     const event = await this.prisma.event.findUnique({
       where: { id },
     });
@@ -102,11 +93,6 @@ export class EventsService {
     if (!event) {
       throw new NotFoundException(`Event with ID ${id} not found`);
     }
-
-    // Improved similarity algorithm with weighting:
-    // 1. Same category (highest weight)
-    // 2. Similar location (medium weight)
-    // 3. Proximity in time (lower weight)
 
     const locationParts = event.location.split(',').map(p => p.trim());
     const primaryLocation = locationParts[0];
@@ -120,26 +106,22 @@ export class EventsService {
         ],
       },
       orderBy: [
-        // Prisma doesn't support complex weighting directly in findMany, 
-        // so we sort by priority fields
-        { category: 'desc' }, // Higher priority for same category
-        { location: 'asc' },   // Secondary for location
-        { date: event.date < new Date() ? 'desc' : 'asc' }, // Then by date proximity
+        { category: 'desc' },
+        { location: 'asc' },
+        { date: event.date < new Date() ? 'desc' : 'asc' },
       ],
-      take: limit * 2, // Take more for manual refiner if needed, but here we just limit
+      take: limit * 2,
     });
 
-    // Simple manual sort for better weighting if results are plenty
     const sortedEvents = similarEvents
       .map(e => {
         let score = 0;
         if (e.category === event.category) score += 10;
         if (e.location.toLowerCase().includes(primaryLocation.toLowerCase())) score += 5;
 
-        // Date score: closer dates get higher score (max 5 points)
         const timeDiff = Math.abs(e.date.getTime() - event.date.getTime());
         const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
-        score += Math.max(0, 5 - (daysDiff / 30)); // 5 points if same day, 0 if > 5 months away
+        score += Math.max(0, 5 - (daysDiff / 30));
 
         return { event: e, score };
       })
@@ -147,7 +129,6 @@ export class EventsService {
       .slice(0, limit)
       .map(item => item.event);
 
-    // Fallback: if not enough events, fill with upcoming events
     if (sortedEvents.length < limit) {
       const existingIds = sortedEvents.map(e => e.id);
       const additional = await this.prisma.event.findMany({
@@ -163,7 +144,6 @@ export class EventsService {
     return sortedEvents.map((event) => this.transformEvent(event));
   }
 
-
   async getCategories(): Promise<string[]> {
     const events = await this.prisma.event.findMany({
       select: {
@@ -175,7 +155,7 @@ export class EventsService {
     return events.map((event) => event.category).sort();
   }
 
-  async update(id: string, updateEventDto: UpdateEventDto) {
+  async update(id: string, updateEventDto: UpdateEventDto): Promise<IEvent> {
     const existingEvent = await this.prisma.event.findUnique({
       where: { id },
     });
@@ -201,15 +181,12 @@ export class EventsService {
     return this.transformEvent(updatedEvent);
   }
 
-  async remove(id: string) {
-    this.logger.log(`Deleting event with ID: ${id}`);
-
+  async remove(id: string): Promise<IDeleteResponse> {
     const event = await this.prisma.event.findUnique({
       where: { id },
     });
 
     if (!event) {
-      this.logger.warn(`Event with ID ${id} not found for deletion`);
       throw new NotFoundException(`Event with ID ${id} not found`);
     }
 
@@ -217,12 +194,10 @@ export class EventsService {
       where: { id },
     });
 
-    this.logger.log(`Event deleted successfully: ${event.title}`);
-
     return { id };
   }
 
-  private transformEvent(event: any) {
+  private transformEvent(event: any): IEvent {
     return {
       id: event.id,
       title: event.title,
