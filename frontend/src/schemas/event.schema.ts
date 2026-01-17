@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
-// Schema for optional number fields (latitude/longitude)
-// Accepts string, number, or undefined and converts to number | undefined
+// preprocesses for better validation of optional number fields (latitude/longitude)
+
+
 const optionalNumberSchema = z.preprocess(
   (val) => (val === '' || val === null || val === undefined ? undefined : Number(val)),
   z.number().min(-90, 'Latitude must be between -90 and 90').max(90, 'Latitude must be between -90 and 90').optional()

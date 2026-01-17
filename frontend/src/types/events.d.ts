@@ -26,3 +26,12 @@ export interface IEvent {
     limit: number;
     totalPages: number;
   };
+
+  interface IQueryParams {
+    search?: string;
+    category?: string;
+    sortBy?: 'date' | 'title' | 'createdAt';
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    limit?: number;
+  }

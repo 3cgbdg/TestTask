@@ -6,34 +6,19 @@ import { useQuery } from '@tanstack/react-query';
 import { useDispatch } from 'react-redux';
 import {
   Container,
-  Card,
-  CardContent,
-  CardActions,
   Typography,
   Button,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Box,
-  Chip,
   CircularProgress,
   Alert,
-  Stack,
-  SelectChangeEvent,
   Pagination,
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  CalendarToday,
-  LocationOn,
-  Search,
-} from '@mui/icons-material';
+import { Add as AddIcon } from '@mui/icons-material';
 import eventsService from '@/src/services/eventsService';
-import { IEvent } from '@/src/types/events';
 import { setEvents } from '@/src/redux/eventsSlice';
 import { AppDispatch } from '@/src/redux/store';
+import EventCard from '@/src/components/events/EventCard';
+import EventFilters from '@/src/components/events/EventFilters';
 
 export default function EventsPage() {
   const router = useRouter();
@@ -55,7 +40,6 @@ export default function EventsPage() {
     queryFn: () => eventsService.getCategories(),
   });
 
-  // Ensure categories is always an array
   const categories = useMemo(() => {
     if (!categoriesData) return [];
     return Array.isArray(categoriesData) ? categoriesData : [];
@@ -81,20 +65,18 @@ export default function EventsPage() {
   const events = eventsResponse?.data || [];
   const totalPages = eventsResponse?.totalPages || 0;
 
-  const formatDate = useMemo(() => {
-    return (dateString: string) => {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '';
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    };
-  }, []);
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   const truncateDescription = (text?: string, maxLength: number = 150) => {
     if (!text) return '';
@@ -134,68 +116,26 @@ export default function EventsPage() {
         </Button>
       </Box>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 4 }} flexWrap="wrap">
-        <TextField
-          fullWidth
-          sx={{ minWidth: 200, flex: 1 }}
-          placeholder="Search..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          InputProps={{
-            startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />,
-          }}
-        />
-
-        <FormControl sx={{ minWidth: 180 }}>
-          <InputLabel>Category</InputLabel>
-          <Select
-            value={category || ''}
-            label="Category"
-            onChange={(e: SelectChangeEvent) => {
-              setCategory(e.target.value || '');
-              setPage(1);
-            }}
-          >
-            <MenuItem value="">All</MenuItem>
-            {Array.isArray(categories) && categories.map((cat) => (
-              <MenuItem key={cat} value={cat}>
-                {cat}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <FormControl sx={{ minWidth: 150 }}>
-          <InputLabel>Sort By</InputLabel>
-          <Select
-            value={`${sortBy}_${sortOrder}`}
-            label="Sort By"
-            onChange={(e: SelectChangeEvent) => {
-              const [by, order] = e.target.value.split('_');
-              setSortBy(by as 'date' | 'title' | 'createdAt');
-              setSortOrder(order as 'asc' | 'desc');
-            }}
-          >
-            <MenuItem value="date_asc">Date (Ascending)</MenuItem>
-            <MenuItem value="date_desc">Date (Descending)</MenuItem>
-            <MenuItem value="title_asc">Title (A-Z)</MenuItem>
-            <MenuItem value="title_desc">Title (Z-A)</MenuItem>
-            <MenuItem value="createdAt_desc">Newest First</MenuItem>
-            <MenuItem value="createdAt_asc">Oldest First</MenuItem>
-          </Select>
-        </FormControl>
-
-        <Button
-          variant="outlined"
-          onClick={() => router.push('/events/map')}
-          sx={{ minWidth: 120 }}
-        >
-          Map
-        </Button>
-      </Stack>
+      <EventFilters
+        search={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        category={category}
+        onCategoryChange={(val) => {
+          setCategory(val);
+          setPage(1);
+        }}
+        categories={categories}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSortChange={(by, order) => {
+          setSortBy(by);
+          setSortOrder(order);
+        }}
+        onMapClick={() => router.push('/events/map')}
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -213,53 +153,13 @@ export default function EventsPage() {
         <>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 3 }}>
             {events.map((event) => (
-              <Card
+              <EventCard
                 key={event.id}
-                sx={{
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 4,
-                  },
-                }}
-              >
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Chip label={event.category} size="small" color="primary" />
-                  </Box>
-                  <Typography variant="h6" component="h2" gutterBottom fontWeight={600}>
-                    {event.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2, minHeight: 60 }}>
-                    {truncateDescription(event.description)}
-                  </Typography>
-                  <Stack spacing={1}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <CalendarToday fontSize="small" color="action" />
-                      <Typography variant="body2" color="text.secondary">
-                        {formatDate(event.date)}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <LocationOn fontSize="small" color="action" />
-                      <Typography variant="body2" color="text.secondary">
-                        {event.location}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </CardContent>
-                <CardActions>
-                  <Button
-                    size="small"
-                    onClick={() => router.push(`/events/${event.id}`)}
-                  >
-                    Details
-                  </Button>
-                </CardActions>
-              </Card>
+                event={event}
+                formatDate={formatDate}
+                truncateDescription={truncateDescription}
+                onDetailsClick={(id) => router.push(`/events/${id}`)}
+              />
             ))}
           </Box>
 
